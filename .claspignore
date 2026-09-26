@@ -1,0 +1,15 @@
+# Hanya kode Apps Script yang dikirim oleh `clasp push`.
+# File lain (Excel referensi, catatan, dsb.) tetap di komputer saja.
+**/**
+!*.js
+!*.html
+!appsscript.json
+# Uji & perbaikan sekali-jalan: menulis data contoh ke sheet asli, jadi
+# tidak boleh ada di aplikasi yang dipakai (tetap tersimpan di komputer).
+tes_*.js
+test*.js
+fix.js
+# Data migrasi (nama & saldo anggota) — hanya dipakai sekali, tidak disimpan di Apps Script
+migrasi_data.js
+# Contoh untuk GitHub; yang dipakai aplikasi adalah identitas_lokal.js
+identitas_lokal.contoh.js

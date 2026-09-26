@@ -1,0 +1,27 @@
+# ============================================================
+# DATA PRIBADI / KEUANGAN KOPERASI — JANGAN PERNAH MASUK GIT
+# ============================================================
+# Pembukuan Excel & dokumen RAT (nama, simpanan, pinjaman anggota)
+*.xlsx
+*.xls
+*.docx
+*.doc
+referensi/
+Contoh Laporan RAT*
+# Panduan versi bermerek koperasi (untuk bendahara); versi netral ada di docs/
+/Panduan Aplikasi Koperasi.pdf
+# Data hasil ekstrak Excel untuk migrasi (nama & saldo seluruh anggota)
+migrasi_data.js
+# Nama pengurus & pengawas (lihat identitas_lokal.contoh.js)
+identitas_lokal.js
+
+# ============================================================
+# Konfigurasi lokal
+# ============================================================
+# ID proyek Apps Script (lihat .clasp.json.contoh)
+.clasp.json
+.clasprc.json
+~$*
+.DS_Store
+Thumbs.db
+node_modules/
