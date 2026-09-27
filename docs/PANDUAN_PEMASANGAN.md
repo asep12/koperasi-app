@@ -7,6 +7,9 @@ Tutorial membangun aplikasi koperasi ini **dari repositori**, untuk:
 
 Panduan pemakaian harian untuk admin dan petugas ada di [`Panduan Aplikasi Koperasi.pdf`](Panduan%20Aplikasi%20Koperasi.pdf).
 
+> **Pemula / tidak ingin memasang Node.js, Git, dan clasp?** Pakai **[Panduan Pemula](PANDUAN_PEMULA.md)**:
+> cukup salin-tempel beberapa file dari folder `paket_manual/` ke editor Apps Script lewat browser.
+
 ---
 
 ## Daftar isi
@@ -269,7 +272,13 @@ clasp push                 # kirim ke Apps Script → langsung terlihat di link 
 1. Uji lewat link **`/dev`** (Apps Script → Terapkan → Uji deployment). Link ini hanya bisa dibuka pemilik/editor.
 2. Bila sudah benar, perbarui link yang dipakai semua orang: **Terapkan → Kelola deployment → ✏️ Edit →
    Versi: Versi baru → Terapkan**. Link `/exec` tetap sama.
-3. Simpan ke GitHub:
+3. Perbarui paket salin-tempel untuk pemula (`paket_manual/`, lihat [Panduan Pemula](PANDUAN_PEMULA.md)):
+
+   ```bash
+   python tools/buat_paket_manual.py         # --cek untuk memeriksa saja
+   ```
+
+4. Simpan ke GitHub:
 
    ```bash
    git status                   # pastikan tidak ada file data (Excel, migrasi_data.js, identitas_lokal.js)
