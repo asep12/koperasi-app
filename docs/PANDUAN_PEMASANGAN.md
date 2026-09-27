@@ -69,7 +69,8 @@ git clone https://github.com/asep12/koperasi-app.git
 cd koperasi-app
 ```
 
-Repo ini privat. Untuk koperasi lain, salin (fork) atau minta akses dulu.
+Pemakaian untuk koperasi lain memerlukan izin tertulis dari pemegang hak cipta (lihat [LICENSE](../LICENSE)).
+Hubungi [@asep94 di Threads](https://www.threads.com/@asep94) terlebih dahulu.
 
 ### 3.2 Buat spreadsheet & proyek skrip
 
@@ -232,6 +233,9 @@ sebagai saldo awal; SHU tahun lalu dibagi di bulan Januari sesuai persentase RAT
 ---
 
 ## 6. Memakai untuk koperasi lain
+
+> Pemakaian untuk koperasi lain memerlukan izin tertulis dari pemegang hak cipta (lihat [LICENSE](../LICENSE)).
+> Hubungi [@asep94 di Threads](https://www.threads.com/@asep94) untuk izin atau kustomisasi.
 
 Kode repo ini tidak menyebut nama koperasi atau sekolah mana pun. Semua identitas diambil dari:
 

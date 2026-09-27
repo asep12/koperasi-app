@@ -42,3 +42,27 @@ Ringkas pemasangan: `clasp login` → salin `.clasp.json.contoh` & `identitas_lo
 menu 🔧 SETUP → Jalankan Setup Lengkap → `buatAdminPertama` → Deploy Web App (Execute as: Me, Anyone).
 
 Panduan pemakaian untuk admin dan petugas: [`docs/Panduan Aplikasi Koperasi.pdf`](docs/Panduan%20Aplikasi%20Koperasi.pdf).
+
+## Kredit
+
+Dikembangkan oleh **Asep Hanuryana**, Threads: [@asep94](https://www.threads.com/@asep94).
+
+Jika aplikasi ini bermanfaat atau Anda membagikannya, mohon cantumkan kredit dan mention
+[@asep94](https://www.threads.com/@asep94) di Threads.
+
+## Lisensi, komersialisasi & kustomisasi
+
+Hak Cipta © 2026 Asep Hanuryana. **Seluruh hak dilindungi.** Lihat [LICENSE](LICENSE).
+
+Repositori ini boleh dilihat publik, tetapi **memasang, memakai, menyalin, mengubah, menyebarkan,
+atau menjual** aplikasi ini memerlukan izin tertulis dari pemilik.
+
+Hubungi [@asep94 di Threads](https://www.threads.com/@asep94) untuk:
+
+- izin memakai aplikasi di koperasi Anda,
+- komersialisasi atau kerja sama,
+- kustomisasi fitur sesuai kebutuhan koperasi Anda.
+
+## Keamanan
+
+Menemukan celah keamanan? **Jangan** membuat Issue publik. Ikuti petunjuk di [SECURITY.md](SECURITY.md).
