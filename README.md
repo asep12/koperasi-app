@@ -25,6 +25,7 @@ Google Apps Script dengan Google Sheets sebagai basis data.
 | `akuntansi.js`, `laporan*.js`, `tutup_buku.js`, `rat.js` | Jurnal, laporan, tutup buku, laporan RAT |
 | `migrasi.js` | Pemindahan data dari Excel pembukuan |
 | `identitas_lokal.contoh.js` | Contoh nama pengurus (salin menjadi `identitas_lokal.js`) |
+| `paket_manual/` | Kode siap salin-tempel untuk [Panduan Pemula](docs/PANDUAN_PEMULA.md); dibuat oleh `tools/buat_paket_manual.py` |
 
 ## Data pribadi
 
@@ -34,6 +35,8 @@ Seluruh data koperasi hanya tersimpan di Google Sheets milik koperasi.
 
 ## Panduan
 
+- **[Panduan Pemula](docs/PANDUAN_PEMULA.md)**: cara termudah, cukup lewat browser. Salin-tempel beberapa file
+  dari folder [`paket_manual/`](paket_manual) ke editor Apps Script, tanpa Node.js, Git, atau clasp.
 - **[Panduan Pemasangan](docs/PANDUAN_PEMASANGAN.md)**: memasang dari nol, memasang ulang, memindahkan data
   dari Excel pembukuan, memakai untuk koperasi lain, memperbarui kode, dan mengatasi masalah.
 - **`tools/ekstrak_excel.py`**: mengubah Excel pembukuan menjadi data migrasi yang dicocokkan per bulan.
