@@ -556,6 +556,9 @@ dengan file ini. Lalu deploy ulang (New version).
     .langkah li.selesai .nomor { background: var(--ok); border-color: var(--ok); color: #fff; }
     .langkah li.selesai button { background: #F7FBF8; }
     .btn.bahaya-garis { color: var(--bad); border-color: #EBC3BD; }
+    .jasa-tabel { max-height: 60vh; overflow: auto; }
+    .jasa-tabel th { position: sticky; top: 0; z-index: 1; }
+    .jasa-tabel td.nama { white-space: nowrap; }
     .btn.bahaya-garis:hover { background: var(--bad-soft); filter: none; }
     .note.awas { background: var(--bad-soft); color: #7A231A; border-left: 3px solid var(--bad); }
     .mig-langkah { list-style: none; padding: 0; margin: 14px 0 0; display: grid;
@@ -1105,12 +1108,15 @@ dengan file ini. Lalu deploy ulang (New version).
           <div class="card-b">
             <p class="teks-bantu">Rumus mengikuti Pengaturan tahun buku (bawaan: saldo sukarela terendah bulan ini × 1%).
               Hitung dulu (status DRAFT, masih bisa diperiksa di sheet), lalu posting untuk
-              mengunci &amp; membuat jurnal. Berlaku untuk bulan berjalan.</p>
+              mengunci &amp; membuat jurnal. Berlaku untuk <b>bulan yang dipilih di atas</b>
+              (<span id="jasa-periode">—</span>); kerjakan di akhir bulan, setelah semua penarikan diinput.</p>
             <div class="aksi-baris">
               <button class="btn utama" id="b-jasa">Hitung jasa sukarela</button>
               <button class="btn emas admin-only" id="b-posting">Posting &amp; kunci</button>
+              <button class="btn garis admin-only" id="b-jasa-susulan">Jasa bulan yang terlewat…</button>
             </div>
             <div class="note info" id="h-akhir" style="display:none"></div>
+            <div id="jasa-pratinjau" style="display:none;margin-top:12px"></div>
           </div>
         </div>
         <details class="card lainnya">
@@ -2275,7 +2281,7 @@ dengan file ini. Lalu deploy ulang (New version).
   }
   function terapkanNominal() {
     terapkanProfil();
-    ['tg-tahun', 'lp-tahun'].forEach(id => { if (!$(id).value) $(id).value = DATA.tahunAktif || new Date().getFullYear(); });
+    ['tg-tahun', 'lp-tahun'].forEach(id => { if (!$(id).value) $(id).value = DATA.tahunAktif || new Date().getFullYear(); }); tampilPeriodeJasa();
     if ($('pjm-jasa').value === '') $('pjm-jasa').value = DATA.jasaPinjaman;
     const n = DATA.nominal;
     if (!n) return;
@@ -2615,14 +2621,86 @@ dengan file ini. Lalu deploy ulang (New version).
   $('b-struk').addEventListener('click', function() {
     api('apiCetakStruk', undefined, this).then(p => hasilNote('h-tengah', p));
   });
-  $('b-jasa').addEventListener('click', function() {
-    api('apiHitungJasa', undefined, this).then(p => hasilNote('h-akhir', p));
+  // Jasa sukarela mengikuti bulan yang dipilih di kartu Tagihan
+  function periodeJasa() {
+    const tahun = Number($('tg-tahun').value) || new Date().getFullYear(), bulan = Number($('tg-bulan').value);
+    return { tahun: tahun, bulan: bulan, nama: NAMA_BULAN_ID[bulan - 1] + ' ' + tahun };
+  }
+  function tampilPeriodeJasa() { $('jasa-periode').textContent = periodeJasa().nama; }
+  ['tg-bulan', 'tg-tahun'].forEach(id => $(id).addEventListener('change', () => {
+    tampilPeriodeJasa(); $('jasa-pratinjau').style.display = 'none';
+  }));
+  // Bulan terpilih belum berakhir → saldo terendahnya masih bisa berubah
+  async function cekAkhirBulan(p) {
+    const skr = new Date();
+    if (p.tahun * 12 + p.bulan < skr.getFullYear() * 12 + skr.getMonth() + 1) return true;
+    return tanya(p.nama + ' belum berakhir. Penarikan yang diinput setelah ini tidak ikut ' +
+      'mengurangi saldo terendah bulan ini.', { judul: 'Hitung sekarang?', tombol: 'Tetap hitung' });
+  }
+  $('b-jasa').addEventListener('click', async function() {
+    const p = periodeJasa();
+    if (!(await cekAkhirBulan(p))) return;
+    api('apiHitungJasa', { tahun: p.tahun, bulan: p.bulan }, this).then(h => hasilNote('h-akhir', h));
   });
   $('b-posting').addEventListener('click', async function() {
-    if (!(await tanya('Data jasa bulan ini dikunci & jurnal dibuat. Tidak bisa diubah lagi.',
-      { judul: 'Posting jasa sukarela?', tombol: 'Posting & kunci' }))) return;
-    api('apiPostingJasa', undefined, this)
-      .then(p => { hasilNote('h-akhir', p); muatDashboard(); });
+    const p = periodeJasa();
+    if (!(await tanya('Data jasa ' + p.nama + ' dikunci & jurnal dibuat. Tidak bisa diubah lagi.',
+      { judul: 'Posting jasa sukarela ' + p.nama + '?', tombol: 'Posting & kunci' }))) return;
+    api('apiPostingJasa', { tahun: p.tahun, bulan: p.bulan }, this)
+      .then(h => { hasilNote('h-akhir', h); muatDashboard(); });
+  });
+
+  // Susulan: Januari s.d. bulan terpilih yang belum punya jasa — pratinjau dulu, baru simpan
+  function renderSusulan(h) {
+    const el = $('jasa-pratinjau'), bulanBaru = h.bulan.filter(b => b.status === 'baru');
+    const keluar = h.anggota.filter(a => a.status !== 'aktif' && a.total > 0);
+    const kolom = bulanBaru.map(b => b.bulan);
+    el.style.display = '';
+    el.innerHTML =
+      '<div class="note info">' +
+        (h.disimpan ? '✅ Tersimpan & diposting: ' : 'Pratinjau (belum disimpan): ') +
+        'jasa sukarela ' + (bulanBaru.length ? bulanBaru[0].namaBulan + '–' + bulanBaru[bulanBaru.length - 1].namaBulan : '—') +
+        ' ' + h.tahun + ' untuk ' + h.anggota.length + ' anggota, total <b>' + rp(h.total) + '</b>.' +
+        (h.bulan.some(b => b.status === 'sudah') ? '<br>Sudah diposting sebelumnya (dilewati): ' +
+          h.bulan.filter(b => b.status === 'sudah').map(b => b.namaBulan).join(', ') + '.' : '') +
+        (keluar.length ? '<br>⚠️ Termasuk anggota yang kini <b>keluar</b> (masih punya saldo di bulan itu): ' +
+          keluar.map(a => esc(a.nama) + ' ' + rp(a.total)).join(', ') + ' — jasanya menjadi saldo sukarela ' +
+          'yang perlu dibayarkan.' : '') +
+        (h.disimpan ? '' : '<br>Setiap bulan diposting berurutan: jasa bulan sebelumnya ikut menjadi saldo dasar bulan berikutnya.') +
+      '</div>' +
+      (bulanBaru.length ? '<div class="scroll jasa-tabel"><table><tr><th>Nama</th>' +
+        kolom.map(b => '<th class="ka">' + NAMA_BULAN_ID[b - 1].slice(0, 3) + '</th>').join('') +
+        '<th class="ka">Total</th></tr>' +
+        h.anggota.map(a => '<tr><td class="nama">' + esc(a.nama) + (a.status !== 'aktif' ? ' <span class="chip pending">' + esc(a.status) + '</span>' : '') +
+          '</td>' + kolom.map(b => '<td class="ka num">' + (a.jasa[b] ? rp(a.jasa[b]) : '–') + '</td>').join('') +
+          '<td class="ka num"><b>' + rp(a.total) + '</b></td></tr>').join('') +
+        '<tr><td><b>JUMLAH</b></td>' + kolom.map(b => '<td class="ka num"><b>' +
+          rp(bulanBaru.find(x => x.bulan === b).total) + '</b></td>').join('') +
+        '<td class="ka num"><b>' + rp(h.total) + '</b></td></tr></table></div>' : '') +
+      (!h.disimpan && bulanBaru.length ? '<div class="aksi-baris" style="margin-top:12px">' +
+        '<button class="btn emas" id="b-susulan-simpan">Simpan &amp; posting semua</button>' +
+        '<button class="btn garis" id="b-susulan-tutup">Tutup</button></div>' : '');
+    if ($('b-susulan-simpan')) {
+      $('b-susulan-simpan').addEventListener('click', async function() {
+        if (!(await tanya('Jasa ' + bulanBaru.length + ' bulan (' + rp(h.total) + ') ditambahkan ke saldo sukarela ' +
+          h.anggota.length + ' anggota, dikunci & dijurnal. Tidak bisa diubah lagi tanpa VOID.',
+          { judul: 'Simpan jasa bulan yang terlewat?', tombol: 'Simpan & posting' }))) return;
+        api('apiJasaSusulan', { tahun: h.tahun, bulan: h.sampaiBulan, simpan: true }, this)
+          .then(x => { renderSusulan(x); muatDashboard(); toast('✅ Jasa sukarela tersimpan.', true); });
+      });
+      $('b-susulan-tutup').addEventListener('click', () => { el.style.display = 'none'; });
+    }
+  }
+  $('b-jasa-susulan').addEventListener('click', async function() {
+    const p = periodeJasa();
+    if (!(await cekAkhirBulan(p))) return;
+    api('apiJasaSusulan', { tahun: p.tahun, bulan: p.bulan }, this).then(h => {
+      if (!h.bulan.some(b => b.status === 'baru')) {
+        $('jasa-pratinjau').style.display = 'none';
+        return info('Jasa sukarela Januari–' + p.nama + ' sudah lengkap diposting; tidak ada yang terlewat.');
+      }
+      renderSusulan(h);
+    });
   });
 
   // ================= LAPORAN =================
@@ -3293,6 +3371,7 @@ dengan file ini. Lalu deploy ulang (New version).
     $(id).innerHTML = NAMA_BULAN_ID.map((n, i) => '<option value="' + (i + 1) + '">' + n + '</option>').join('');
     $(id).value = new Date().getMonth() + 1;
   });
+  tampilPeriodeJasa();
 
   // ================= TAGIHAN & POTONG GAJI =================
   let TAGIHAN = null;

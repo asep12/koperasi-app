@@ -33,8 +33,11 @@
  *
  * @param {number} [tahun]  default: tahun aktif
  * @param {number} [bulan]  default: bulan berjalan sekarang
+ * @param {Object} [opsi]   { semuaAnggota: true } → termasuk anggota yang KINI keluar/nonaktif
+ *                          (dipakai saat menyusulkan bulan lalu: status sekarang belum tentu
+ *                          status bulan itu; yang saldonya 0 tetap dilewati)
  */
-function hitungJasaSukarelaBulanan(tahun, bulan) {
+function hitungJasaSukarelaBulanan(tahun, bulan, opsi) {
   const sekarang = new Date();
   tahun = tahun || getTahunAktif();
   bulan = bulan || (sekarang.getMonth() + 1);
@@ -44,11 +47,12 @@ function hitungJasaSukarelaBulanan(tahun, bulan) {
   const persenJasa = Number(setting.jasa_sukarela);
   const metode = metodeJasaSukarela(setting);
 
+  const semua = !!(opsi && opsi.semuaAnggota);
   const anggotaAktif = getRowsByFilter(SHEET.ANGGOTA, function(row) {
-    return row.status === 'aktif';
+    return semua ? !!String(row.id_anggota || '') : row.status === 'aktif';
   });
 
-  const hasil = { dibuat: [], dilewatiSudahAda: [], dilewatiSaldoNol: [] };
+  const hasil = { dibuat: [], dilewatiSudahAda: [], dilewatiSaldoNol: [], rincian: [] };
 
   denganTulisMassal(function() {   // semua baris DRAFT ditulis sekaligus di akhir
   anggotaAktif.forEach(function(anggota) {
@@ -67,7 +71,8 @@ function hitungJasaSukarelaBulanan(tahun, bulan) {
     const saldoAwalBulan = j.saldoAwal;
 
     // Aturan: tidak diberikan jika dasar hitung = 0 (anggota baru / saldo sempat habis)
-    if (j.dasar <= 0) {
+    // atau jasanya dibulatkan jadi Rp 0 (saldo sangat kecil)
+    if (j.dasar <= 0 || j.nominal <= 0) {
       hasil.dilewatiSaldoNol.push(anggota.nama);
       return;
     }
@@ -92,6 +97,8 @@ function hitungJasaSukarelaBulanan(tahun, bulan) {
     logAktivitas('INSERT', SHEET.JASA_SUKARELA, idJasa, null, row);
 
     hasil.dibuat.push(anggota.nama + ': ' + formatRupiah(nominalJasa));
+    hasil.rincian.push({ id: String(anggota.id_anggota), nama: String(anggota.nama),
+      status: String(anggota.status || ''), nominal: nominalJasa });
   });
   });
   logAktivitas('INSERT', SHEET.JASA_SUKARELA, 'HITUNG-JASA-' + tahun + '-' + bulan, null,
@@ -266,6 +273,72 @@ function postingJasaSukarela(tahun, bulan) {
   );
 
   return { diposting: draftBulanIni.length, totalJasa: totalJasa };
+}
+
+// ============================================================
+// SUSULAN — bulan-bulan yang belum pernah dihitung
+// ============================================================
+
+/**
+ * Hitung & posting jasa sukarela bulan 1..sampaiBulan yang BELUM punya jasa POSTED,
+ * berurutan: jasa Januari diposting dulu sehingga ikut menjadi saldo dasar Februari,
+ * dst. (hasilnya sama seperti bila setiap bulan dikerjakan tepat waktu).
+ *
+ * simpan=false → PRATINJAU: dihitung penuh di memori lalu dibuang, tidak ada yang tertulis.
+ * simpan=true  → ditulis sekaligus (atau tidak sama sekali bila ada yang gagal).
+ */
+function jasaSukarelaSusulan(tahun, sampaiBulan, simpan) {
+  tahun = Number(tahun); sampaiBulan = Number(sampaiBulan);
+  if (!(sampaiBulan >= 1 && sampaiBulan <= 12)) throw new Error('Bulan tidak valid.');
+  validateTahunAktif(tahun);
+  pastikanKolomJasaSukarela();
+
+  const hasil = { tahun: tahun, sampaiBulan: sampaiBulan, bulan: [], anggota: [], total: 0, disimpan: !!simpan };
+  const perAnggota = {};
+  const barisBulan = function(b) {
+    return getRowsByFilter(SHEET.JASA_SUKARELA, function(r) {
+      return r.status_lock !== STATUS_LOCK.VOID && Number(r.tahun) === tahun && Number(r.bulan) === b;
+    });
+  };
+  mulaiTulisMassal();
+  try {
+    for (let b = 1; b <= sampaiBulan; b++) {
+      const info = { bulan: b, namaBulan: NAMA_BULAN_PANJANG[b - 1], anggota: 0, total: 0 };
+      const lama = barisBulan(b);
+      if (lama.some(function(r) { return r.status_posting === 'POSTED'; })) {
+        info.status = 'sudah';
+        info.anggota = lama.length;
+        info.total = lama.reduce(function(s, r) { return s + (Number(r.nominal_jasa) || 0); }, 0);
+        hasil.bulan.push(info);
+        continue;
+      }
+      hitungJasaSukarelaBulanan(tahun, b, { semuaAnggota: true });
+      // semua DRAFT bulan itu (baru dihitung + DRAFT lama bila ada) → rincian, lalu posting
+      barisBulan(b).forEach(function(r) {
+        const id = String(r.id_anggota), a = getAnggota(id), nominal = Number(r.nominal_jasa) || 0;
+        const p = perAnggota[id] = perAnggota[id] ||
+          { id: id, nama: a ? String(a.nama) : id, status: a ? String(a.status || '') : '', jasa: {}, total: 0 };
+        p.jasa[b] = nominal; p.total += nominal;
+        info.anggota++; info.total += nominal;
+      });
+      if (info.anggota) postingJasaSukarela(tahun, b);
+      info.status = info.anggota ? 'baru' : 'kosong';
+      hasil.total += info.total;
+      hasil.bulan.push(info);
+    }
+    if (simpan) selesaiTulisMassal(); else batalTulisMassal();
+  } catch (e) {
+    batalTulisMassal();
+    throw e;
+  }
+  hasil.anggota = Object.keys(perAnggota).map(function(k) { return perAnggota[k]; })
+    .sort(function(a, b) { return a.id < b.id ? -1 : 1; });
+  if (simpan) {
+    logAktivitas('INSERT', SHEET.JASA_SUKARELA, 'SUSULAN-JASA-' + tahun + '-1-' + sampaiBulan, null,
+      { bulan: hasil.bulan.filter(function(x) { return x.status === 'baru'; }).length,
+        anggota: hasil.anggota.length, total: hasil.total });
+  }
+  return hasil;
 }
 
 // ============================================================

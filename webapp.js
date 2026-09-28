@@ -598,23 +598,46 @@ function apiCetakStruk() {
     '\nTotal potongan: ' + formatRupiah(h.totalPotongan);
 }
 
-function apiHitungJasa() {
+/** Bulan jasa dari UI (halaman Bulanan); tanpa isian → bulan berjalan. */
+function periodeJasa_(d) {
+  const sekarang = new Date();
+  const tahun = Number(d && d.tahun) || getTahunAktif();
+  const bulan = Number(d && d.bulan) || (sekarang.getMonth() + 1);
+  if (!(bulan >= 1 && bulan <= 12)) throw new Error('Bulan tidak valid.');
+  if (tahun * 12 + bulan > sekarang.getFullYear() * 12 + sekarang.getMonth() + 1) {
+    throw new Error('Jasa ' + NAMA_BULAN_PANJANG[bulan - 1] + ' ' + tahun +
+      ' belum bisa dihitung — bulannya belum berjalan.');
+  }
+  return { tahun: tahun, bulan: bulan, nama: NAMA_BULAN_PANJANG[bulan - 1] + ' ' + tahun };
+}
+
+function apiHitungJasa(d) {
   requireRole(['admin', 'operator']);
   MODE_SENYAP = true;
-  const h = hitungJasaSukarelaBulanan();
-  return '✅ Hitung jasa selesai (DRAFT).\nDibuat: ' + h.dibuat.length +
+  const p = periodeJasa_(d);
+  const h = hitungJasaSukarelaBulanan(p.tahun, p.bulan);
+  return '✅ Hitung jasa ' + p.nama + ' selesai (DRAFT).\nDibuat: ' + h.dibuat.length +
     '\nDilewati (saldo 0): ' + h.dilewatiSaldoNol.length +
     '\nDilewati (sudah ada): ' + h.dilewatiSudahAda.length;
 }
 
-function apiPostingJasa() {
+function apiPostingJasa(d) {
   requireRole(['admin']);
   MODE_SENYAP = true;
-  const h = postingJasaSukarela();
+  const p = periodeJasa_(d);
+  const h = postingJasaSukarela(p.tahun, p.bulan);
   return h.diposting > 0
-    ? '✅ Posting selesai. ' + h.diposting + ' anggota, total ' +
+    ? '✅ Posting jasa ' + p.nama + ' selesai. ' + h.diposting + ' anggota, total ' +
       formatRupiah(h.totalJasa) + '. Data terkunci.'
-    : 'Tidak ada DRAFT untuk diposting.';
+    : 'Tidak ada DRAFT jasa ' + p.nama + ' untuk diposting.';
+}
+
+/** Jasa sukarela bulan-bulan yang terlewat (Januari s.d. bulan terpilih). d.simpan=false → pratinjau. */
+function apiJasaSusulan(d) {
+  requireRole(['admin']);
+  MODE_SENYAP = true;
+  const p = periodeJasa_(d);
+  return jasaSukarelaSusulan(p.tahun, p.bulan, !!(d && d.simpan));
 }
 
 // ============================================================
