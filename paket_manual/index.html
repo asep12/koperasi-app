@@ -3397,7 +3397,9 @@ dengan file ini. Lalu deploy ulang (New version).
       '<th class="ka">Jumlah</th><th class="ka hp-sembunyi">Sisa Piutang</th>' +
       '<th title="Kosongkan bila angsuran pegawai ini belum bisa dipotong bulan ini">Potong angsuran</th><th>Status</th></tr>' +
       t.baris.map((b, i) => '<tr class="tg-baris' + (b.selesai ? ' selesai' : '') + '">' +
-        '<td><input type="checkbox" class="tg-cek" data-i="' + i + '"' + (b.selesai ? ' disabled' : ' checked') + '></td>' +
+        // anggota nonaktif (biasanya sudah tidak menerima gaji) tidak ikut tercentang otomatis
+        '<td><input type="checkbox" class="tg-cek' + (b.status !== 'aktif' ? ' tg-nonaktif' : '') + '" data-i="' + i + '"' +
+          (b.selesai ? ' disabled' : b.status === 'aktif' ? ' checked' : '') + '></td>' +
         '<td><b>' + esc(b.nama) + '</b>' + (b.status !== 'aktif' ? ' <span class="chip ' + esc(b.status) + '">' + esc(b.status) + '</span>' : '') +
           (b.pinjamanBaru ? ' <span class="chip pending">pinjaman baru</span>' : '') + '</td>' +
         td(b.pokok, 1) + td(b.wajib, 1) + td(b.sukarela, 1) + td(b.angsuranPokok, 1) + td(b.jasa, 1) +
@@ -3411,10 +3413,16 @@ dengan file ini. Lalu deploy ulang (New version).
       '<tr><td></td><td><b>JUMLAH</b></td>' + ['pokok', 'wajib', 'sukarela', 'angsuranPokok', 'jasa', 'jumlah', 'sisaPiutang']
         .map(k => '<td class="ka num' + (k === 'jumlah' ? '' : ' hp-sembunyi') + '"><b>' +
           rp(t.total[k]) + '</b></td>').join('') + '<td></td><td></td></tr></table>';
+    const nonaktif = t.baris.filter(b => b.status !== 'aktif' && !b.selesai).length;
+    if (nonaktif) {
+      $('tabel-tagihan').insertAdjacentHTML('beforeend', '<div class="note info" id="tg-catatan-nonaktif" style="margin-top:10px">' +
+        nonaktif + ' anggota <b>nonaktif</b> (masih punya pinjaman) tidak dicentang otomatis. Centang manual hanya bila ' +
+        'angsurannya memang dipotong dari gaji bulan ini.</div>');
+    }
     const adaTercatat = t.baris.some(b => b.status_proses.wajib || b.status_proses.sukarela || b.status_proses.pokok && b.pokok ||
       b.status_proses.angsuran && b.angsuranPokok + b.jasa > 0);
     $('tg-semua').addEventListener('change', function() {
-      document.querySelectorAll('.tg-cek:not(:disabled)').forEach(c => c.checked = this.checked); });
+      document.querySelectorAll('.tg-cek:not(:disabled):not(.tg-nonaktif)').forEach(c => c.checked = this.checked); });
     $('tg-aksi').style.display = '';
     $('tg-progres').textContent = '';
     terapkanPeran();
