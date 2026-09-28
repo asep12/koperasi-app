@@ -555,6 +555,8 @@ dengan file ini. Lalu deploy ulang (New version).
     .langkah small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
     .langkah li.selesai .nomor { background: var(--ok); border-color: var(--ok); color: #fff; }
     .langkah li.selesai button { background: #F7FBF8; }
+    .btn.bahaya-garis { color: var(--bad); border-color: #EBC3BD; }
+    .btn.bahaya-garis:hover { background: var(--bad-soft); filter: none; }
     .note.awas { background: var(--bad-soft); color: #7A231A; border-left: 3px solid var(--bad); }
     .mig-langkah { list-style: none; padding: 0; margin: 14px 0 0; display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
@@ -1093,6 +1095,7 @@ dengan file ini. Lalu deploy ulang (New version).
             <button class="btn garis" id="b-tg-daftar">Cetak Daftar Tagihan</button>
             <button class="btn garis" id="b-tg-slip">Cetak Slip Tagihan (6/lembar)</button>
             <button class="btn utama admin-only" id="b-tg-proses">Proses Potong Gaji (yang dicentang)</button>
+            <button class="btn garis bahaya-garis admin-only" id="b-tg-batal" style="display:none">Batalkan pembukuan bulan ini</button>
             <span id="tg-progres" style="font-size:13px;color:var(--muted)"></span>
           </div>
         </div>
@@ -3312,22 +3315,32 @@ dengan file ini. Lalu deploy ulang (New version).
     const td = (v, hp) => '<td class="ka num' + (hp ? ' hp-sembunyi' : '') + '">' + (v ? rp(v) : '–') + '</td>';
     $('tabel-tagihan').innerHTML = '<table><tr><th><input type="checkbox" id="tg-semua" checked aria-label="Pilih semua"></th>' +
       '<th>Nama</th>' + ['Pokok', 'Wajib', 'Sukarela', 'Angsuran', 'Jasa'].map(h => '<th class="ka hp-sembunyi">' + h + '</th>').join('') +
-      '<th class="ka">Jumlah</th><th class="ka hp-sembunyi">Sisa Piutang</th><th>Status</th></tr>' +
+      '<th class="ka">Jumlah</th><th class="ka hp-sembunyi">Sisa Piutang</th>' +
+      '<th title="Kosongkan bila angsuran pegawai ini belum bisa dipotong bulan ini">Potong angsuran</th><th>Status</th></tr>' +
       t.baris.map((b, i) => '<tr class="tg-baris' + (b.selesai ? ' selesai' : '') + '">' +
         '<td><input type="checkbox" class="tg-cek" data-i="' + i + '"' + (b.selesai ? ' disabled' : ' checked') + '></td>' +
         '<td><b>' + esc(b.nama) + '</b>' + (b.status !== 'aktif' ? ' <span class="chip ' + esc(b.status) + '">' + esc(b.status) + '</span>' : '') +
           (b.pinjamanBaru ? ' <span class="chip pending">pinjaman baru</span>' : '') + '</td>' +
         td(b.pokok, 1) + td(b.wajib, 1) + td(b.sukarela, 1) + td(b.angsuranPokok, 1) + td(b.jasa, 1) +
         '<td class="ka num"><b>' + rp(b.jumlah) + '</b></td>' + td(b.sisaPiutang, 1) +
-        '<td><span class="chip ' + (b.selesai ? 'aktif">tercatat' : 'pending">belum') + '</span></td></tr>').join('') +
+        '<td style="text-align:center">' + (b.angsuranPokok + b.jasa > 0 && !b.status_proses.angsuran
+          ? '<input type="checkbox" class="tg-angs" data-i="' + i + '" checked aria-label="Potong angsuran ' + esc(b.nama) + '">'
+          : '<span style="color:var(--muted)">–</span>') + '</td>' +
+        '<td><span class="chip ' + (b.selesai ? 'aktif">tercatat'
+          : b.status_proses.pokok && b.status_proses.wajib && b.status_proses.sukarela ? 'pending">Angsuran belum'
+          : 'pending">belum') + '</span></td></tr>').join('') +
       '<tr><td></td><td><b>JUMLAH</b></td>' + ['pokok', 'wajib', 'sukarela', 'angsuranPokok', 'jasa', 'jumlah', 'sisaPiutang']
         .map(k => '<td class="ka num' + (k === 'jumlah' ? '' : ' hp-sembunyi') + '"><b>' +
-          rp(t.total[k]) + '</b></td>').join('') + '<td></td></tr></table>';
+          rp(t.total[k]) + '</b></td>').join('') + '<td></td><td></td></tr></table>';
+    const adaTercatat = t.baris.some(b => b.status_proses.wajib || b.status_proses.sukarela || b.status_proses.pokok && b.pokok ||
+      b.status_proses.angsuran && b.angsuranPokok + b.jasa > 0);
     $('tg-semua').addEventListener('change', function() {
       document.querySelectorAll('.tg-cek:not(:disabled)').forEach(c => c.checked = this.checked); });
     $('tg-aksi').style.display = '';
     $('tg-progres').textContent = '';
     terapkanPeran();
+    // sesudah terapkanPeran (yang memunculkan semua tombol admin): tombol batal hanya bila ada pembukuan
+    $('b-tg-batal').style.display = ADMIN && adaTercatat ? '' : 'none';
   }
   $('b-tg-tampil').addEventListener('click', function() { muatTagihan(this); });
 
@@ -3379,8 +3392,12 @@ dengan file ini. Lalu deploy ulang (New version).
     const ids = [...document.querySelectorAll('.tg-cek:checked:not(:disabled)')]
       .map(c => TAGIHAN.baris[Number(c.dataset.i)].id);
     if (ids.length === 0) return toast('❌ Tidak ada anggota yang dicentang.', false);
+    const tanpaAngsuran = [...document.querySelectorAll('.tg-angs:not(:checked)')]
+      .map(c => TAGIHAN.baris[Number(c.dataset.i)].id).filter(id => ids.indexOf(id) !== -1);
     if (!(await tanya('Setoran wajib, sukarela rutin, pokok (jika ada) dan angsuran dicatat (kas masuk + jurnal). ' +
-      'Yang sudah tercatat dilewati.', { judul: 'Bukukan potong gaji ' + TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun +
+      'Yang sudah tercatat dilewati.' + (tanpaAngsuran.length ? '\n\nAngsuran ' + tanpaAngsuran.length +
+      ' anggota TIDAK dipotong bulan ini (hanya simpanannya); angsurannya tetap tertagih.' : ''),
+      { judul: 'Bukukan potong gaji ' + TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun +
       ' untuk ' + ids.length + ' anggota?', tombol: 'Bukukan' }))) return;
     const tombol = this;
     tombol.disabled = true;
@@ -3388,14 +3405,31 @@ dengan file ini. Lalu deploy ulang (New version).
     for (let i = 0; i < ids.length; i += 40) {
       $('tg-progres').textContent = 'Memproses ' + Math.min(i + 40, ids.length) + ' dari ' + ids.length + ' anggota…';
       try {
-        const h = await api('apiProsesPotongGaji', { tahun: TAGIHAN.tahun, bulan: TAGIHAN.bulan, ids: ids.slice(i, i + 40) });
+        const bagian = ids.slice(i, i + 40);
+        const h = await api('apiProsesPotongGaji', { tahun: TAGIHAN.tahun, bulan: TAGIHAN.bulan, ids: bagian,
+          tanpaAngsuran: tanpaAngsuran.filter(id => bagian.indexOf(id) !== -1) });
         hasil.diproses += h.diproses.length; hasil.gagal = hasil.gagal.concat(h.gagal);
       } catch (e) { break; }
     }
     tombol.disabled = false;
     $('tg-progres').textContent = '';
     info('Potong gaji selesai: ' + hasil.diproses + ' anggota dibukukan.' +
+      (tanpaAngsuran.length ? '\nAngsuran belum dipotong: ' + tanpaAngsuran.length + ' anggota.' : '') +
       (hasil.gagal.length ? '\n\nGagal:\n' + hasil.gagal.join('\n') : ''), 'Potong gaji selesai');
+    muatTagihan(); muatDashboard(); muatLangkahBulanan(); muatBeranda();
+  });
+
+  $('b-tg-batal').addEventListener('click', async function() {
+    if (!TAGIHAN) return;
+    const periode = TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun;
+    const alasan = await minta('Semua setoran & angsuran hasil potong gaji ' + periode + ' dibatalkan: kas & jurnal dibalik, ' +
+      'datanya tetap tercatat sebagai "Dibatalkan". Setelah itu potong gaji bulan ini bisa dibukukan ulang.',
+      { judul: 'Batalkan pembukuan potong gaji ' + periode + '?', label: 'Alasan (wajib)',
+        placeholder: 'mis. ada penarikan & pinjaman yang belum diinput', tombol: 'Batalkan pembukuan', bahaya: true });
+    if (alasan === null) return;
+    if (!alasan.trim()) return toast('❌ Alasan wajib diisi.', false);
+    const h = await api('apiBatalkanPotongGaji', { tahun: TAGIHAN.tahun, bulan: TAGIHAN.bulan, alasan: alasan.trim() }, this);
+    info(h.pesan, 'Pembukuan dibatalkan');
     muatTagihan(); muatDashboard(); muatLangkahBulanan(); muatBeranda();
   });
 

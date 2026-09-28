@@ -675,6 +675,25 @@ function voidKasByReferensi(referensi) {
   return rows.length;
 }
 
+/** Batalkan satu setoran (baris OPEN): tandai VOID, kas & jurnal dibalik. */
+function voidSetoranInti_(row, alasan) {
+  updateRowByRowNumber(SHEET.SIMPANAN, row.__row, { status_lock: STATUS_LOCK.VOID,
+    keterangan: (row.keterangan ? row.keterangan + ' | ' : '') + 'VOID: ' + alasan });
+  voidKasByReferensi(row.id_transaksi);
+  buatJurnalBalik(row.id_transaksi, alasan);
+}
+
+/** Batalkan satu angsuran (baris OPEN); pinjaman yang sempat lunas kembali aktif. @return sisa pinjaman */
+function voidAngsuranInti_(row, alasan) {
+  updateRowByRowNumber(SHEET.ANGSURAN, row.__row, { status_lock: STATUS_LOCK.VOID,
+    keterangan: (row.keterangan ? row.keterangan + ' | ' : '') + 'VOID: ' + alasan });
+  voidKasByReferensi(row.id_angsuran);
+  buatJurnalBalik(row.id_angsuran, alasan);
+  const sisa = getSisaPinjaman(row.id_pinjaman);
+  if (sisa > 0) updateRowByField(SHEET.PINJAMAN, 'id_pinjaman', row.id_pinjaman, { status: 'aktif' });
+  return sisa;
+}
+
 function apiVoidTransaksi(d) {
   const profil = requireRole(['admin']);
   MODE_SENYAP = true;
@@ -685,10 +704,7 @@ function apiVoidTransaksi(d) {
     if (!row) throw new Error('Setoran tidak ditemukan.');
     if (row.status_lock !== STATUS_LOCK.OPEN)
       throw new Error('Hanya transaksi OPEN yang bisa di-void (status: ' + row.status_lock + ').');
-    updateRowByRowNumber(SHEET.SIMPANAN, row.__row, { status_lock: STATUS_LOCK.VOID,
-      keterangan: (row.keterangan ? row.keterangan + ' | ' : '') + 'VOID: ' + alasan });
-    voidKasByReferensi(id);
-    buatJurnalBalik(id, alasan);
+    voidSetoranInti_(row, alasan);
     logAktivitas('VOID', SHEET.SIMPANAN, id, row, { alasan: alasan, oleh: profil.email });
     return '✅ Setoran ' + id + ' di-void. Kas & jurnal sudah dibalik.';
   }
@@ -698,14 +714,7 @@ function apiVoidTransaksi(d) {
     if (!row) throw new Error('Angsuran tidak ditemukan.');
     if (row.status_lock !== STATUS_LOCK.OPEN)
       throw new Error('Hanya transaksi OPEN yang bisa di-void.');
-    updateRowByRowNumber(SHEET.ANGSURAN, row.__row, { status_lock: STATUS_LOCK.VOID,
-      keterangan: (row.keterangan ? row.keterangan + ' | ' : '') + 'VOID: ' + alasan });
-    voidKasByReferensi(id);
-    buatJurnalBalik(id, alasan);
-    // Pinjaman yang tadinya lunas bisa kembali aktif
-    const sisa = getSisaPinjaman(row.id_pinjaman);
-    if (sisa > 0) updateRowByField(SHEET.PINJAMAN, 'id_pinjaman', row.id_pinjaman,
-      { status: 'aktif' });
+    const sisa = voidAngsuranInti_(row, alasan);
     logAktivitas('VOID', SHEET.ANGSURAN, id, row, { alasan: alasan, oleh: profil.email });
     return '✅ Angsuran ' + id + ' di-void. Sisa pinjaman kembali ' + formatRupiah(sisa) + '.';
   }
