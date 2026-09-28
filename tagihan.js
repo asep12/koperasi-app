@@ -159,13 +159,20 @@ function hitungTagihanBulanan(tahun, bulan) {
  * Bukukan potong gaji untuk anggota terpilih. Item yang sudah tercatat dilewati.
  * @return {Object} { diproses: [..], dilewati: n, gagal: [..] }
  */
-function prosesPotongGaji(tahun, bulan, daftarId) {
+/**
+ * @param {string[]} daftarId       anggota yang dibukukan
+ * @param {string[]} [tanpaAngsuran] anggota yang angsurannya TIDAK dipotong bulan ini
+ *                                   (hanya simpanan yang dibukukan; angsuran tetap tertagih)
+ */
+function prosesPotongGaji(tahun, bulan, daftarId, tanpaAngsuran) {
   tahun = Number(tahun); bulan = Number(bulan);
   validateTahunAktif(tahun);
   const tanggal = new Date(tahun, bulan - 1, 10);   // tanggal potong gaji (seperti angsuran)
   const tanda = tandaPotongGaji(tahun, bulan);
   const pilih = {};
   (daftarId || []).forEach(function(id) { pilih[String(id)] = true; });
+  const lewatiAngsuran = {};
+  (tanpaAngsuran || []).forEach(function(id) { lewatiAngsuran[String(id)] = true; });
 
   const tagihan = hitungTagihanBulanan(tahun, bulan);
   const hasil = { diproses: [], dilewati: 0, gagal: [] };
@@ -190,13 +197,14 @@ function prosesPotongGaji(tahun, bulan, daftarId) {
       inputSetoranSimpanan({ id_anggota: b.id, jenis_simpanan: 'sukarela', jumlah_setoran: b.sukarela,
         tanggal: tanggal, keterangan: tanda });
     });
-    if (!b.status_proses.angsuran) {
+    if (!b.status_proses.angsuran && !lewatiAngsuran[b.id]) {
       getPinjamanAktif(b.id).forEach(function(p) {
         const r = rincianAngsuranBulan(p, tahun, bulan);
         if (!r || r.sudah || r.baru || r.pokok + r.jasa === 0) return;
         coba('angsuran ' + p.id_pinjaman, function() { generateSatuAngsuran(p, tahun, bulan); });
       });
     }
+    if (lewatiAngsuran[b.id] && !b.status_proses.angsuran) hasil.tanpaAngsuran = (hasil.tanpaAngsuran || 0) + 1;
     if (langkah.length) hasil.diproses.push(b.nama + ': ' + langkah.join(', '));
   });
 
@@ -225,7 +233,58 @@ function apiProsesPotongGaji(d) {
   const ids = d.ids || [];
   if (ids.length === 0) throw new Error('Pilih minimal satu anggota.');
   if (ids.length > 40) throw new Error('Maksimal 40 anggota per proses (aplikasi memprosesnya bertahap).');
-  return prosesPotongGaji(d.tahun, d.bulan, ids);
+  return prosesPotongGaji(d.tahun, d.bulan, ids, d.tanpaAngsuran || []);
+}
+
+/**
+ * Batalkan SELURUH pembukuan potong gaji satu bulan: setoran bertanda
+ * "Potong gaji <bulan> <tahun>" dan angsuran hasil generate/potong gaji bulan itu.
+ * Semua dibatalkan dengan jejak (VOID + jurnal balik), sekaligus atau tidak sama sekali.
+ */
+function apiBatalkanPotongGaji(d) {
+  const profil = requireRole(['admin']);
+  MODE_SENYAP = true;
+  const tahun = Number(d && d.tahun), bulan = Number(d && d.bulan);
+  const alasan = String(d && d.alasan || '').trim();
+  if (!tahun || !(bulan >= 1 && bulan <= 12)) throw new Error('Bulan tidak valid.');
+  if (!alasan) throw new Error('Alasan pembatalan wajib diisi.');
+  validateTahunAktif(tahun);
+  const tanda = tandaPotongGaji(tahun, bulan);
+  const ket = 'Batal potong gaji ' + NAMA_BULAN_PANJANG[bulan - 1] + ' ' + tahun + ': ' + alasan;
+
+  const setoran = getRowsByFilter(SHEET.SIMPANAN, function(r) {
+    return r.status_lock === STATUS_LOCK.OPEN && Number(r.tahun) === tahun && Number(r.bulan) === bulan &&
+      String(r.keterangan || '').indexOf(tanda) === 0;
+  });
+  const angsuran = getRowsByFilter(SHEET.ANGSURAN, function(r) {
+    return r.status_lock === STATUS_LOCK.OPEN && Number(r.tahun) === tahun && Number(r.bulan) === bulan &&
+      String(r.keterangan || '').indexOf('Generate otomatis') === 0;
+  });
+  if (!setoran.length && !angsuran.length) {
+    throw new Error('Tidak ada pembukuan potong gaji ' + NAMA_BULAN_PANJANG[bulan - 1] + ' ' + tahun + ' yang bisa dibatalkan.');
+  }
+  const total = setoran.reduce(function(s, r) { return s + (Number(r.jumlah_setoran) || 0); }, 0) +
+    angsuran.reduce(function(s, r) { return s + (Number(r.total_bayar) || 0); }, 0);
+  const anggota = {};
+  setoran.concat(angsuran).forEach(function(r) { anggota[r.id_anggota] = true; });
+
+  mulaiTulisMassal();
+  try {
+    angsuran.forEach(function(r) { voidAngsuranInti_(r, ket); });
+    setoran.forEach(function(r) { voidSetoranInti_(r, ket); });
+    selesaiTulisMassal();
+  } catch (e) {
+    batalTulisMassal();
+    throw e;
+  }
+  logAktivitas('VOID', SHEET.SIMPANAN, 'POTONG-GAJI-' + tahun + '-' + bulan, null,
+    { setoran: setoran.length, angsuran: angsuran.length, total: total, alasan: alasan, oleh: profil.email });
+  return {
+    anggota: Object.keys(anggota).length, setoran: setoran.length, angsuran: angsuran.length, total: total,
+    pesan: 'Pembukuan potong gaji ' + NAMA_BULAN_PANJANG[bulan - 1] + ' ' + tahun + ' dibatalkan: ' +
+      setoran.length + ' setoran & ' + angsuran.length + ' angsuran dari ' + Object.keys(anggota).length +
+      ' anggota (' + formatRupiah(total) + '). Kas & jurnal sudah dibalik; data tetap tercatat sebagai "Dibatalkan".'
+  };
 }
 
 /**
