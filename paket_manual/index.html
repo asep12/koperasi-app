@@ -3402,10 +3402,10 @@ dengan file ini. Lalu deploy ulang (New version).
     const tombol = this;
     tombol.disabled = true;
     const hasil = { diproses: 0, gagal: [] };
-    for (let i = 0; i < ids.length; i += 40) {
-      $('tg-progres').textContent = 'Memproses ' + Math.min(i + 40, ids.length) + ' dari ' + ids.length + ' anggota…';
+    for (let i = 0; i < ids.length; i += 100) {
+      $('tg-progres').textContent = 'Memproses ' + Math.min(i + 100, ids.length) + ' dari ' + ids.length + ' anggota…';
       try {
-        const bagian = ids.slice(i, i + 40);
+        const bagian = ids.slice(i, i + 100);
         const h = await api('apiProsesPotongGaji', { tahun: TAGIHAN.tahun, bulan: TAGIHAN.bulan, ids: bagian,
           tanpaAngsuran: tanpaAngsuran.filter(id => bagian.indexOf(id) !== -1) });
         hasil.diproses += h.diproses.length; hasil.gagal = hasil.gagal.concat(h.gagal);

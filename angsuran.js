@@ -53,6 +53,7 @@ function generateAngsuranBulanan(tahun, bulan) {
 
   const hasil = { berhasil: [], dilewati: [], gagal: [] };
 
+  denganTulisMassal(function() {   // semua angsuran ditulis sekaligus di akhir
   semuaPinjamanAktif.forEach(function(pinjaman) {
     try {
       // Lewati jika bulan ini SUDAH pernah digenerate untuk pinjaman ini
@@ -80,6 +81,9 @@ function generateAngsuranBulanan(tahun, bulan) {
       hasil.gagal.push(pinjaman.id_pinjaman + ': ' + e.message);
     }
   });
+  });
+  logAktivitas('INSERT', SHEET.ANGSURAN, 'GENERATE-' + tahun + '-' + bulan, null,
+    { berhasil: hasil.berhasil.length, dilewati: hasil.dilewati.length, gagal: hasil.gagal.length });
 
   const pesan =
     '✅ GENERATE ANGSURAN — Tahun ' + tahun + ' Bulan ' + bulan + '\n\n' +

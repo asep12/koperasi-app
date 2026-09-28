@@ -50,6 +50,7 @@ function hitungJasaSukarelaBulanan(tahun, bulan) {
 
   const hasil = { dibuat: [], dilewatiSudahAda: [], dilewatiSaldoNol: [] };
 
+  denganTulisMassal(function() {   // semua baris DRAFT ditulis sekaligus di akhir
   anggotaAktif.forEach(function(anggota) {
     // Lewati jika bulan ini SUDAH pernah dihitung untuk anggota ini
     const sudahAda = getRowsByFilter(SHEET.JASA_SUKARELA, function(row) {
@@ -92,6 +93,9 @@ function hitungJasaSukarelaBulanan(tahun, bulan) {
 
     hasil.dibuat.push(anggota.nama + ': ' + formatRupiah(nominalJasa));
   });
+  });
+  logAktivitas('INSERT', SHEET.JASA_SUKARELA, 'HITUNG-JASA-' + tahun + '-' + bulan, null,
+    { dibuat: hasil.dibuat.length });
 
   const pesan =
     '✅ HITUNG JASA SUKARELA — Tahun ' + tahun + ' Bulan ' + bulan + ' (status: DRAFT)\n' +
@@ -225,6 +229,7 @@ function postingJasaSukarela(tahun, bulan) {
 
   const tanggalPosting = new Date(tahun, bulan - 1, 28); // akhir bulan, sesuai checklist tgl 25-31
 
+  denganTulisMassal(function() {   // status POSTED & jurnal ditulis sekaligus di akhir
   draftBulanIni.forEach(function(row) {
     const anggota = getAnggota(row.id_anggota);
     const namaAnggota = anggota ? anggota.nama : row.id_anggota;
@@ -246,8 +251,11 @@ function postingJasaSukarela(tahun, bulan) {
     logAktivitas('EDIT', SHEET.JASA_SUKARELA, row.id,
       { status_posting: 'DRAFT' }, { status_posting: 'POSTED' });
   });
+  });
 
   const totalJasa = draftBulanIni.reduce(function(s, r) { return s + Number(r.nominal_jasa); }, 0);
+  logAktivitas('EDIT', SHEET.JASA_SUKARELA, 'POSTING-JASA-' + tahun + '-' + bulan,
+    { status_posting: 'DRAFT' }, { status_posting: 'POSTED', anggota: draftBulanIni.length, total: totalJasa });
 
   tampilkanPesan(
     '✅ POSTING SELESAI — Tahun ' + tahun + ' Bulan ' + bulan + '\n\n' +

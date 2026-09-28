@@ -598,6 +598,7 @@ function generateAngsuranBulanan(tahun, bulan) {
 
   const hasil = { berhasil: [], dilewati: [], gagal: [] };
 
+  denganTulisMassal(function() {   // semua angsuran ditulis sekaligus di akhir
   semuaPinjamanAktif.forEach(function(pinjaman) {
     try {
       // Lewati jika bulan ini SUDAH pernah digenerate untuk pinjaman ini
@@ -625,6 +626,9 @@ function generateAngsuranBulanan(tahun, bulan) {
       hasil.gagal.push(pinjaman.id_pinjaman + ': ' + e.message);
     }
   });
+  });
+  logAktivitas('INSERT', SHEET.ANGSURAN, 'GENERATE-' + tahun + '-' + bulan, null,
+    { berhasil: hasil.berhasil.length, dilewati: hasil.dilewati.length, gagal: hasil.gagal.length });
 
   const pesan =
     '✅ GENERATE ANGSURAN — Tahun ' + tahun + ' Bulan ' + bulan + '\n\n' +
@@ -2000,7 +2004,7 @@ function selesaiTulisMassal() {
       sheet.getRange(b.barisAwal, 1, b.baris.length, b.header.length).setValues(b.baris);
       ringkas[nama] = b.baris.length;
     }
-    b.ubah.forEach(function(u) { sheet.getRange(u[0], u[1]).setValue(u[2]); });
+    tulisPerubahanMassal_(sheet, nama, b);
   });
   __TULIS_MASSAL = null;
   // Apps Script menunda penulisan ke sheet; paksa sekarang supaya penolakan
@@ -2011,12 +2015,74 @@ function selesaiTulisMassal() {
 }
 
 /**
+ * Tulis perubahan sel pada baris LAMA per blok baris berdekatan (satu setValues per blok),
+ * bukan satu setValue per sel — mis. membatalkan 150 transaksi: ±10 panggilan, bukan ±500.
+ * Sel di dalam blok yang tidak berubah ditulis ulang dengan nilai yang sama dari cache.
+ */
+function tulisPerubahanMassal_(sheet, namaSheet, b) {
+  if (!b.ubah.length) return;
+  const data = __CACHE_SHEET[namaSheet] || [];
+  const nilai = {};                                   // baris → { kolom: nilai } (perubahan terakhir menang)
+  b.ubah.forEach(function(u) { (nilai[u[0]] = nilai[u[0]] || {})[u[1]] = u[2]; });
+  const baris = Object.keys(nilai).map(Number).sort(function(x, y) { return x - y; });
+  const objBaris = function(r) { const o = data[r - 2]; return o && o.__row === r ? o : null; };
+
+  let i = 0;
+  while (i < baris.length) {
+    let j = i;
+    while (j + 1 < baris.length && baris[j + 1] - baris[j] <= 3) j++;
+    const r0 = baris[i], r1 = baris[j];
+    let c0 = Infinity, c1 = 0, lengkap = true;
+    for (let r = r0; r <= r1; r++) {
+      if (!objBaris(r)) lengkap = false;
+      Object.keys(nilai[r] || {}).forEach(function(c) { c = Number(c); c0 = Math.min(c0, c); c1 = Math.max(c1, c); });
+    }
+    if (!lengkap) {
+      // cadangan: baris tak ada di cache → tulis sel yang berubah saja
+      for (let k = i; k <= j; k++) {
+        Object.keys(nilai[baris[k]]).forEach(function(c) {
+          sheet.getRange(baris[k], Number(c)).setValue(nilai[baris[k]][c]);
+        });
+      }
+    } else {
+      const blok = [];
+      for (let r = r0; r <= r1; r++) {
+        const o = objBaris(r), ubah = nilai[r] || {}, isi = [];
+        for (let c = c0; c <= c1; c++) {
+          isi.push(ubah.hasOwnProperty(c) ? ubah[c] : amanSel_(o[b.header[c - 1]]));
+        }
+        blok.push(isi);
+      }
+      sheet.getRange(r0, c0, blok.length, c1 - c0 + 1).setValues(blok);
+    }
+    i = j + 1;
+  }
+}
+
+/**
  * getRange().setValues() TIDAK menambah baris sendiri (beda dengan appendRow);
  * sheet baru hanya punya 1.000 baris. Tambah baris kosong bila perlu.
  */
 function pastikanKapasitasBaris_(sheet, barisTerakhir) {
   const maks = sheet.getMaxRows();
   if (typeof maks === 'number' && barisTerakhir > maks) sheet.insertRowsAfter(maks, barisTerakhir - maks + 100);
+}
+
+/**
+ * Jalankan fn() dalam mode tulis massal: semua tulisan dikirim sekaligus di akhir,
+ * atau tidak sama sekali bila fn() gagal. Bila mode sudah aktif, fn() langsung dijalankan.
+ */
+function denganTulisMassal(fn) {
+  if (__TULIS_MASSAL) return fn();
+  mulaiTulisMassal();
+  try {
+    const hasil = fn();
+    selesaiTulisMassal();
+    return hasil;
+  } catch (e) {
+    batalTulisMassal();
+    throw e;
+  }
 }
 
 /** Buang semua tampungan (dipakai saat terjadi error). */
@@ -2833,6 +2899,7 @@ function hitungJasaSukarelaBulanan(tahun, bulan) {
 
   const hasil = { dibuat: [], dilewatiSudahAda: [], dilewatiSaldoNol: [] };
 
+  denganTulisMassal(function() {   // semua baris DRAFT ditulis sekaligus di akhir
   anggotaAktif.forEach(function(anggota) {
     // Lewati jika bulan ini SUDAH pernah dihitung untuk anggota ini
     const sudahAda = getRowsByFilter(SHEET.JASA_SUKARELA, function(row) {
@@ -2875,6 +2942,9 @@ function hitungJasaSukarelaBulanan(tahun, bulan) {
 
     hasil.dibuat.push(anggota.nama + ': ' + formatRupiah(nominalJasa));
   });
+  });
+  logAktivitas('INSERT', SHEET.JASA_SUKARELA, 'HITUNG-JASA-' + tahun + '-' + bulan, null,
+    { dibuat: hasil.dibuat.length });
 
   const pesan =
     '✅ HITUNG JASA SUKARELA — Tahun ' + tahun + ' Bulan ' + bulan + ' (status: DRAFT)\n' +
@@ -3008,6 +3078,7 @@ function postingJasaSukarela(tahun, bulan) {
 
   const tanggalPosting = new Date(tahun, bulan - 1, 28); // akhir bulan, sesuai checklist tgl 25-31
 
+  denganTulisMassal(function() {   // status POSTED & jurnal ditulis sekaligus di akhir
   draftBulanIni.forEach(function(row) {
     const anggota = getAnggota(row.id_anggota);
     const namaAnggota = anggota ? anggota.nama : row.id_anggota;
@@ -3029,8 +3100,11 @@ function postingJasaSukarela(tahun, bulan) {
     logAktivitas('EDIT', SHEET.JASA_SUKARELA, row.id,
       { status_posting: 'DRAFT' }, { status_posting: 'POSTED' });
   });
+  });
 
   const totalJasa = draftBulanIni.reduce(function(s, r) { return s + Number(r.nominal_jasa); }, 0);
+  logAktivitas('EDIT', SHEET.JASA_SUKARELA, 'POSTING-JASA-' + tahun + '-' + bulan,
+    { status_posting: 'DRAFT' }, { status_posting: 'POSTED', anggota: draftBulanIni.length, total: totalJasa });
 
   tampilkanPesan(
     '✅ POSTING SELESAI — Tahun ' + tahun + ' Bulan ' + bulan + '\n\n' +

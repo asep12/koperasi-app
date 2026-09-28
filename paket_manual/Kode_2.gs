@@ -3954,6 +3954,9 @@ function prosesPotongGaji(tahun, bulan, daftarId, tanpaAngsuran) {
   const tagihan = hitungTagihanBulanan(tahun, bulan);
   const hasil = { diproses: [], dilewati: 0, gagal: [] };
 
+  // Semua baris (setoran, angsuran, kas, jurnal) ditampung di memori lalu ditulis
+  // sekaligus: ±50 panggilan Sheets, bukan ±50 per anggota.
+  denganTulisMassal(function() {
   tagihan.baris.forEach(function(b) {
     if (!pilih[b.id]) return;
     if (b.selesai) { hasil.dilewati++; return; }
@@ -3984,6 +3987,7 @@ function prosesPotongGaji(tahun, bulan, daftarId, tanpaAngsuran) {
     if (lewatiAngsuran[b.id] && !b.status_proses.angsuran) hasil.tanpaAngsuran = (hasil.tanpaAngsuran || 0) + 1;
     if (langkah.length) hasil.diproses.push(b.nama + ': ' + langkah.join(', '));
   });
+  });
 
   logAktivitas('INSERT', SHEET.SIMPANAN, 'POTONG-GAJI-' + tahun + '-' + bulan, null,
     { anggota: Object.keys(pilih).length, diproses: hasil.diproses.length, gagal: hasil.gagal.length });
@@ -4009,7 +4013,7 @@ function apiProsesPotongGaji(d) {
   MODE_SENYAP = true;
   const ids = d.ids || [];
   if (ids.length === 0) throw new Error('Pilih minimal satu anggota.');
-  if (ids.length > 40) throw new Error('Maksimal 40 anggota per proses (aplikasi memprosesnya bertahap).');
+  if (ids.length > 100) throw new Error('Maksimal 100 anggota per proses (aplikasi memprosesnya bertahap).');
   return prosesPotongGaji(d.tahun, d.bulan, ids, d.tanpaAngsuran || []);
 }
 
