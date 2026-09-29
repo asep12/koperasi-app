@@ -1114,6 +1114,7 @@ dengan file ini. Lalu deploy ulang (New version).
               <button class="btn utama" id="b-jasa">Hitung jasa sukarela</button>
               <button class="btn emas admin-only" id="b-posting">Posting &amp; kunci</button>
               <button class="btn garis admin-only" id="b-jasa-susulan">Jasa bulan yang terlewat…</button>
+              <button class="btn garis bahaya-garis admin-only" id="b-jasa-batal">Batalkan jasa…</button>
             </div>
             <div class="note info" id="h-akhir" style="display:none"></div>
             <div id="jasa-pratinjau" style="display:none;margin-top:12px"></div>
@@ -2691,6 +2692,27 @@ dengan file ini. Lalu deploy ulang (New version).
       $('b-susulan-tutup').addEventListener('click', () => { el.style.display = 'none'; });
     }
   }
+  // Batalkan jasa bulan terpilih + bulan sesudahnya (saldo dasarnya ikut berubah)
+  $('b-jasa-batal').addEventListener('click', async function() {
+    const p = periodeJasa(), tombol = this;
+    const r = await api('apiBatalkanJasa', { tahun: p.tahun, bulan: p.bulan }, tombol);
+    const daftar = r.bulan.map(b => b.namaBulan + ' (' + b.anggota + ' anggota, ' + rp(b.total) + ')').join(', ');
+    const alasan = await minta('Jasa yang dibatalkan: ' + daftar + '. Total ' + rp(r.total) + '.' +
+      (r.bulan.length > 1 || r.bulan[0].bulan !== p.bulan ? '\n\nBulan sesudah ' + p.nama + ' ikut dibatalkan karena ' +
+        'saldo dasarnya memuat jasa bulan sebelumnya.' : '') +
+      '\n\nSaldo sukarela anggota berkurang sebesar jasanya dan jurnal dibalik; datanya tetap tercatat sebagai VOID. ' +
+      'Setelah itu hitung ulang lewat "Jasa bulan yang terlewat".',
+      { judul: 'Batalkan jasa sukarela mulai ' + p.nama + '?', label: 'Alasan (wajib)',
+        placeholder: 'mis. September dihitung sebelum bulannya selesai', tombol: 'Batalkan jasa', bahaya: true });
+    if (alasan === null) return;
+    if (!alasan.trim()) return toast('❌ Alasan wajib diisi.', false);
+    const h = await api('apiBatalkanJasa', { tahun: p.tahun, bulan: p.bulan, alasan: alasan.trim(), simpan: true }, tombol);
+    $('jasa-pratinjau').style.display = 'none';
+    hasilNote('h-akhir', '✅ Jasa sukarela dibatalkan: ' + h.bulan.map(b => b.namaBulan).join(', ') + ' ' + h.tahun +
+      ' — ' + h.baris + ' baris, ' + rp(h.total) + '. Hitung ulang lewat "Jasa bulan yang terlewat".');
+    muatDashboard();
+  });
+
   $('b-jasa-susulan').addEventListener('click', async function() {
     const p = periodeJasa();
     if (!(await cekAkhirBulan(p))) return;

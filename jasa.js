@@ -58,7 +58,7 @@ function hitungJasaSukarelaBulanan(tahun, bulan, opsi) {
   anggotaAktif.forEach(function(anggota) {
     // Lewati jika bulan ini SUDAH pernah dihitung untuk anggota ini
     const sudahAda = getRowsByFilter(SHEET.JASA_SUKARELA, function(row) {
-      return row.id_anggota === anggota.id_anggota &&
+      return row.id_anggota === anggota.id_anggota && row.status_posting !== 'VOID' &&
              Number(row.tahun) === Number(tahun) &&
              Number(row.bulan) === Number(bulan);
     });
@@ -297,7 +297,7 @@ function jasaSukarelaSusulan(tahun, sampaiBulan, simpan) {
   const perAnggota = {};
   const barisBulan = function(b) {
     return getRowsByFilter(SHEET.JASA_SUKARELA, function(r) {
-      return r.status_lock !== STATUS_LOCK.VOID && Number(r.tahun) === tahun && Number(r.bulan) === b;
+      return r.status_posting !== 'VOID' && Number(r.tahun) === tahun && Number(r.bulan) === b;
     });
   };
   mulaiTulisMassal();
@@ -338,6 +338,64 @@ function jasaSukarelaSusulan(tahun, sampaiBulan, simpan) {
       { bulan: hasil.bulan.filter(function(x) { return x.status === 'baru'; }).length,
         anggota: hasil.anggota.length, total: hasil.total });
   }
+  return hasil;
+}
+
+// ============================================================
+// PEMBATALAN — jasa bulan tertentu DAN bulan-bulan sesudahnya
+// ============================================================
+
+/**
+ * Batalkan jasa sukarela tahun itu mulai dariBulan s.d. akhir tahun.
+ * Bulan sesudahnya ikut dibatalkan karena saldo dasarnya memuat jasa bulan
+ * yang dibatalkan; setelah dihitung ulang (mis. lewat "Jasa bulan yang
+ * terlewat") hasilnya kembali berurutan dan konsisten.
+ *
+ * Baris tetap ada dengan status_posting VOID; yang sudah POSTED jurnalnya dibalik.
+ * simpan=false → hanya ringkasan (tidak menulis apa pun).
+ */
+function batalkanJasaSukarela(tahun, dariBulan, alasan, simpan) {
+  tahun = Number(tahun); dariBulan = Number(dariBulan);
+  if (!(dariBulan >= 1 && dariBulan <= 12)) throw new Error('Bulan tidak valid.');
+  validateTahunAktif(tahun);
+  const baris = getRowsByFilter(SHEET.JASA_SUKARELA, function(r) {
+    return Number(r.tahun) === tahun && Number(r.bulan) >= dariBulan &&
+      (r.status_posting === 'DRAFT' || r.status_posting === 'POSTED');
+  });
+  if (!baris.length) {
+    throw new Error('Tidak ada jasa sukarela ' + NAMA_BULAN_PANJANG[dariBulan - 1] + ' ' + tahun +
+      ' atau sesudahnya yang bisa dibatalkan.');
+  }
+  const perBulan = {};
+  baris.forEach(function(r) {
+    const b = Number(r.bulan);
+    const x = perBulan[b] = perBulan[b] || { bulan: b, namaBulan: NAMA_BULAN_PANJANG[b - 1], anggota: 0, total: 0, posted: 0 };
+    x.anggota++; x.total += Number(r.nominal_jasa) || 0;
+    if (r.status_posting === 'POSTED') x.posted++;
+  });
+  const hasil = {
+    tahun: tahun, dariBulan: dariBulan, disimpan: !!simpan,
+    bulan: Object.keys(perBulan).map(Number).sort(function(a, b) { return a - b; })
+      .map(function(b) { return perBulan[b]; }),
+    baris: baris.length,
+    total: baris.reduce(function(s, r) { return s + (Number(r.nominal_jasa) || 0); }, 0)
+  };
+  if (!simpan) return hasil;
+
+  alasan = String(alasan || '').trim();
+  if (!alasan) throw new Error('Alasan pembatalan wajib diisi.');
+  const ket = 'Batal jasa sukarela: ' + alasan;
+  // sheet lama: daftar pilihan status_posting belum memuat VOID
+  pasangValidasi(getSheet(SHEET.JASA_SUKARELA), SHEET.JASA_SUKARELA, getHeader(SHEET.JASA_SUKARELA).map(String));
+  denganTulisMassal(function() {
+    baris.forEach(function(r) {
+      const sudahPosted = r.status_posting === 'POSTED';   // dibaca dulu: update massal mengubah objek cache
+      updateRowByRowNumber(SHEET.JASA_SUKARELA, r.__row, { status_posting: 'VOID' });
+      if (sudahPosted) buatJurnalBalik(r.id, ket);
+    });
+  });
+  logAktivitas('VOID', SHEET.JASA_SUKARELA, 'BATAL-JASA-' + tahun + '-' + dariBulan, null,
+    { bulan: hasil.bulan.map(function(x) { return x.bulan; }), baris: hasil.baris, total: hasil.total, alasan: alasan });
   return hasil;
 }
 

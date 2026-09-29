@@ -632,6 +632,14 @@ function apiPostingJasa(d) {
     : 'Tidak ada DRAFT jasa ' + p.nama + ' untuk diposting.';
 }
 
+/** Batalkan jasa sukarela bulan terpilih & sesudahnya. d.simpan=false → ringkasan saja. */
+function apiBatalkanJasa(d) {
+  requireRole(['admin']);
+  MODE_SENYAP = true;
+  const p = periodeJasa_(d);
+  return batalkanJasaSukarela(p.tahun, p.bulan, d && d.alasan, !!(d && d.simpan));
+}
+
 /** Jasa sukarela bulan-bulan yang terlewat (Januari s.d. bulan terpilih). d.simpan=false → pratinjau. */
 function apiJasaSusulan(d) {
   requireRole(['admin']);

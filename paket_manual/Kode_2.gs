@@ -2987,7 +2987,7 @@ const VALIDASI_CONFIG = {
     'status_lock': ['OPEN', 'LOCKED', 'VOID']
   },
   'rekap_jasa_sukarela': {
-    'status_posting': ['DRAFT', 'POSTED']
+    'status_posting': ['DRAFT', 'POSTED', 'VOID']
   },
   'realisasi_shu': {
     'metode': ['tunai', 'transfer', 'potong_simpanan', 'ditahan'],
