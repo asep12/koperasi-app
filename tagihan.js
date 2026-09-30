@@ -133,7 +133,9 @@ function hitungTagihanBulanan(tahun, bulan) {
       angsuranPokok: angsPokok, jasa: jasa,
       jumlah: pokok + wajib + sukarela + angsPokok + jasa,
       sisaPiutang: sisa,
-      saldoSukarela: getSaldoSimpanan(id, 'sukarela'),
+      // saldo SETELAH potongan bulan ini (seperti slip Excel): s.d. akhir bulan tagihan,
+      // ditambah sukarela bulan ini bila belum dibukukan — sama sebelum & sesudah diproses
+      saldoSukarela: getSaldoSukarelaAkhirBulan(id, tahun, bulan + 1) + (sukarelaSudah ? 0 : sukarela),
       jasaSukarela: aktif ? hitungJasaSukarelaAnggota(id, tahun, bulan, setting).nominal : 0,
       pinjamanBaru: angs.some(function(x) { return x.baru; }),
       status_proses: {
