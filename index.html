@@ -1099,6 +1099,7 @@ dengan file ini. Lalu deploy ulang (New version).
             <button class="btn garis" id="b-tg-slip">Cetak Slip Tagihan (6/lembar)</button>
             <button class="btn utama admin-only" id="b-tg-proses">Proses Potong Gaji (yang dicentang)</button>
             <button class="btn garis bahaya-garis admin-only" id="b-tg-batal" style="display:none">Batalkan pembukuan bulan ini</button>
+            <button class="btn garis admin-only" id="b-tg-pulih" style="display:none">Pulihkan pembukuan yang dibatalkan</button>
             <span id="tg-progres" style="font-size:13px;color:var(--muted)"></span>
           </div>
         </div>
@@ -3476,6 +3477,7 @@ dengan file ini. Lalu deploy ulang (New version).
     terapkanPeran();
     // sesudah terapkanPeran (yang memunculkan semua tombol admin): tombol batal hanya bila ada pembukuan
     $('b-tg-batal').style.display = ADMIN && adaTercatat ? '' : 'none';
+    $('b-tg-pulih').style.display = ADMIN && t.bisaDipulihkan ? '' : 'none';
   }
   $('b-tg-tampil').addEventListener('click', function() { muatTagihan(this); });
 
@@ -3551,6 +3553,19 @@ dengan file ini. Lalu deploy ulang (New version).
     info('Potong gaji selesai: ' + hasil.diproses + ' anggota dibukukan.' +
       (tanpaAngsuran.length ? '\nAngsuran belum dipotong: ' + tanpaAngsuran.length + ' anggota.' : '') +
       (hasil.gagal.length ? '\n\nGagal:\n' + hasil.gagal.join('\n') : ''), 'Potong gaji selesai');
+    muatTagihan(); muatDashboard(); muatLangkahBulanan(); muatBeranda();
+  });
+
+  $('b-tg-pulih').addEventListener('click', async function() {
+    if (!TAGIHAN) return;
+    const periode = TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun, tombol = this;
+    const r = await api('apiPulihkanPotongGaji', { tahun: TAGIHAN.tahun, bulan: TAGIHAN.bulan }, tombol);
+    if (!(await tanya(r.setoran + ' setoran & ' + r.angsuran + ' angsuran dari ' + r.anggota + ' anggota (' + rp(r.total) +
+      ') yang sebelumnya dibatalkan akan dikembalikan: kas & jurnal kembali seperti semula. ' +
+      'Transaksi yang sudah dibukukan ulang tidak ikut dipulihkan (tidak dobel).',
+      { judul: 'Pulihkan pembukuan potong gaji ' + periode + '?', tombol: 'Pulihkan' }))) return;
+    const h = await api('apiPulihkanPotongGaji', { tahun: TAGIHAN.tahun, bulan: TAGIHAN.bulan, simpan: true }, tombol);
+    info(h.pesan, 'Pembukuan dipulihkan');
     muatTagihan(); muatDashboard(); muatLangkahBulanan(); muatBeranda();
   });
 
