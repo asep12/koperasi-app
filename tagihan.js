@@ -102,6 +102,8 @@ function hitungTagihanBulanan(tahun, bulan) {
     (aktifPinjaman[id] = aktifPinjaman[id] || []).push(p);
   });
 
+  // Anggota yang mendaftar SETELAH tanggal potong gaji (tgl 10) baru ditagih bulan berikutnya
+  const batasMasuk = new Date(tahun, bulan - 1, 11);
   const baris = [];
   sheetToObjects(SHEET.ANGGOTA).forEach(function(a) {
     const id = String(a.id_anggota);
@@ -110,6 +112,9 @@ function hitungTagihanBulanan(tahun, bulan) {
     if (!aktif && pinjaman.length === 0) return;
 
     const setoranIni = simpananBulanIni.filter(function(r) { return String(r.id_anggota) === id; });
+    const masuk = a.tanggal_masuk ? new Date(a.tanggal_masuk) : null;
+    if (masuk && !isNaN(masuk.getTime()) && masuk >= batasMasuk && pinjaman.length === 0 &&
+        !setoranIni.some(function(r) { return String(r.keterangan || '').indexOf(tanda) === 0; })) return;
     const wajibSudah = setoranIni.some(function(r) { return r.jenis_simpanan === 'wajib'; });
     const sukarelaSudah = setoranIni.some(function(r) {
       return r.jenis_simpanan === 'sukarela' && String(r.keterangan || '').indexOf(tanda) === 0;
