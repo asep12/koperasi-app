@@ -2974,11 +2974,14 @@ function hitungJasaSukarelaBulanan(tahun, bulan, opsi) {
 /**
  * 'terendah' (bawaan, RAT 2026): jasa = saldo sukarela TERENDAH pada bulan itu
  *            × persen/100. Persen dibaca PER BULAN.
+ * 'terendah_tahunan':           jasa = saldo sukarela TERENDAH pada bulan itu × persen/100 × 30/365.
+ *            Persen dibaca PER TAHUN (seperti file input jasa bendahara).
  * 'harian'  (aturan lama):      jasa = saldo akhir bulan lalu × persen/100 × 30/365.
  *            Persen dibaca PER TAHUN.
  */
 const KET_METODE_JASA = {
   terendah: 'saldo sukarela terendah bulan ini × {p}% per bulan',
+  terendah_tahunan: 'saldo sukarela terendah bulan ini × {p}% per tahun × 30/365',
   harian: 'saldo akhir bulan lalu × {p}% per tahun × 30/365'
 };
 function metodeJasaSukarela(setting) {
@@ -3048,8 +3051,9 @@ function hitungJasaSukarelaAnggota(idAnggota, tahun, bulan, setting) {
       nominal: saldoAwal > 0 ? Math.round(saldoAwal * persen / 100 * 30 / 365) : 0 };
   }
   const s = getSaldoSukarelaTerendahBulan(idAnggota, tahun, bulan);
+  const faktor = metode === 'terendah_tahunan' ? 30 / 365 : 1;   // persen per tahun → sebulan
   return { saldoAwal: s.saldoAwal, dasar: s.terendah, metode: metode,
-    nominal: s.terendah > 0 ? Math.round(s.terendah * persen / 100) : 0 };
+    nominal: s.terendah > 0 ? Math.round(s.terendah * persen / 100 * faktor) : 0 };
 }
 
 // ============================================================

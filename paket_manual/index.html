@@ -1313,6 +1313,7 @@ dengan file ini. Lalu deploy ulang (New version).
             <div class="grid2">
               <div><label for="ta-jsuk-metode">Rumus jasa simpanan sukarela</label>
                 <select id="ta-jsuk-metode">
+                  <option value="terendah_tahunan">Saldo terendah bulan itu × % per tahun × 30/365</option>
                   <option value="terendah">Saldo terendah bulan itu × % per bulan</option>
                   <option value="harian">Saldo akhir bulan lalu × % per tahun × 30/365 (aturan lama)</option>
                 </select></div>
@@ -3769,7 +3770,7 @@ dengan file ini. Lalu deploy ulang (New version).
         '<th class="ka">Pokok / Wajib</th>' +
         '<th>Status</th><th></th></tr>' +
         list.map(t => '<tr><td class="num"><b>' + t.tahun + '</b></td>' +
-          '<td class="ka num">' + t.jasa_sukarela + (t.metode_jasa_sukarela === 'harian' ? '%/th' : '%/bln') + '</td>' +
+          '<td class="ka num">' + t.jasa_sukarela + ((t.metode_jasa_sukarela || 'terendah') === 'terendah' ? '%/bln' : '%/th') + '</td>' +
           '<td class="ka num">' + t.jasa_pinjaman + '%</td>' +
           '<td class="ka num">' + t.shu_simpanan + ' / ' + t.shu_jasa + '</td>' +
           '<td class="ka num">' + t.dana_cadangan + '/' + t.dana_anggota + '/' +
@@ -3784,7 +3785,7 @@ dengan file ini. Lalu deploy ulang (New version).
   }
   function labelJasaSukarela() {
     $('ta-jsuk-label').textContent = 'Jasa Sukarela (% per ' +
-      ($('ta-jsuk-metode').value === 'harian' ? 'tahun)' : 'bulan)');
+      ($('ta-jsuk-metode').value === 'terendah' ? 'bulan)' : 'tahun)');
   }
   $('ta-jsuk-metode').addEventListener('change', labelJasaSukarela);
   function isiFormTahun(t) {

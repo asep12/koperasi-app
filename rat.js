@@ -634,6 +634,9 @@ function susunDocxRAT_(D) {
     'Pengambilan simpanan sukarela dapat dilakukan 2 kali dalam satu tahun, dengan mendaftar sebulan sebelumnya;',
     RK.metodeJasa === 'harian'
       ? 'Simpanan sukarela mendapat jasa ' + String(RK.jasaSukarela).replace('.', ',') + '% per tahun, dihitung setiap bulan dari saldo akhir bulan sebelumnya;'
+      : RK.metodeJasa === 'terendah_tahunan'
+      ? 'Setiap bulan simpanan sukarela mendapat jasa ' + String(RK.jasaSukarela).replace('.', ',') +
+        '% per tahun dari jumlah simpanan sukarela terendah pada bulan tersebut (disesuaikan dengan jasa bank);'
       : 'Setiap bulan simpanan sukarela mendapat jasa ' + String(RK.jasaSukarela).replace('.', ',') +
         '% dari jumlah simpanan sukarela terendah pada bulan tersebut (disesuaikan dengan jasa bank);',
     'Simpanan sukarela tidak diperhitungkan dalam pembagian SHU;',
