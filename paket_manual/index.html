@@ -3234,7 +3234,11 @@ dengan file ini. Lalu deploy ulang (New version).
     api('apiStatusBulanan', { tahun: $('tg-tahun').value, bulan: $('tg-bulan').value }).then(s_ => {
       const langkah = [
         ['Tinjau tagihan', s_.anggotaDitagih + ' anggota ditagih', TAGIHAN && TAGIHAN.bulan === s_.bulan, 'kartu-tagihan'],
-        ['Cetak slip & daftar', 'Serahkan ke bendahara gaji', false, 'kartu-tagihan'],
+        ['Cetak slip & daftar', (() => {
+          const c = s_.cetak || {}, tgl = x => x ? new Date(x.waktu).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
+          return c.slip || c.daftar ? 'Slip ' + (c.slip ? '✓ ' + tgl(c.slip) : 'belum') + ' · Daftar ' + (c.daftar ? '✓ ' + tgl(c.daftar) : 'belum')
+            : 'Serahkan ke bendahara gaji';
+        })(), !!(s_.cetak && (s_.cetak.slip || s_.cetak.daftar)), 'kartu-tagihan'],
         ['Bukukan potong gaji', s_.belumDibukukan ? s_.belumDibukukan + ' anggota belum' : 'Semua tercatat',
           s_.anggotaDitagih > 0 && s_.belumDibukukan === 0, 'kartu-tagihan'],
         ['Hitung jasa sukarela', s_.jasaDraft + s_.jasaPosted ? (s_.jasaDraft + s_.jasaPosted) + ' anggota' : 'Belum dihitung',
@@ -3517,11 +3521,20 @@ dengan file ini. Lalu deploy ulang (New version).
     }
     return html || '<div class="kosong">Tidak ada tagihan.</div>';
   }
+  // catat bahwa slip/daftar bulan ini sudah dicetak (langkah 2 di "Proses Bulanan" jadi tercentang)
+  function catatCetak(jenis) {
+    api('apiCatatCetakTagihan', { tahun: TAGIHAN.tahun, bulan: TAGIHAN.bulan, jenis: jenis })
+      .then(muatLangkahBulanan).catch(() => {});
+  }
   $('b-tg-daftar').addEventListener('click', () => {
-    if (TAGIHAN) bukaDok('Daftar Tagihan ' + TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun, dokDaftarTagihan(TAGIHAN), 'landscape');
+    if (!TAGIHAN) return;
+    bukaDok('Daftar Tagihan ' + TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun, dokDaftarTagihan(TAGIHAN), 'landscape');
+    catatCetak('daftar');
   });
   $('b-tg-slip').addEventListener('click', () => {
-    if (TAGIHAN) bukaDok('Slip Tagihan ' + TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun, dokSlipTagihan(TAGIHAN), 'portrait');
+    if (!TAGIHAN) return;
+    bukaDok('Slip Tagihan ' + TAGIHAN.namaBulan + ' ' + TAGIHAN.tahun, dokSlipTagihan(TAGIHAN), 'portrait');
+    catatCetak('slip');
   });
 
   $('b-tg-proses').addEventListener('click', async function() {

@@ -415,6 +415,26 @@ function apiStatusBulanan(f) {
     belumDibukukan: tagihan.baris.filter(function(b) { return !b.selesai; }).length,
     jasaDraft: jasa.filter(function(r) { return r.status_posting === 'DRAFT'; }).length,
     jasaPosted: jasa.filter(function(r) { return r.status_posting === 'POSTED'; }).length,
-    pengajuanMenunggu: getDaftarPending().length
+    pengajuanMenunggu: getDaftarPending().length,
+    cetak: bacaCetakTagihan_(tahun, bulan)
   };
+}
+
+/** Riwayat cetak slip/daftar tagihan per bulan (disimpan di Script Properties). */
+function kunciCetakTagihan_(tahun, bulan) { return 'CETAK_TAGIHAN_' + tahun + '_' + bulan; }
+function bacaCetakTagihan_(tahun, bulan) {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(kunciCetakTagihan_(tahun, bulan)) || '{}'); }
+  catch (e) { return {}; }
+}
+
+/** Dipanggil setiap kali slip/daftar tagihan dicetak → langkah "Cetak slip & daftar" tercentang. */
+function apiCatatCetakTagihan(d) {
+  const profil = requireRole(['admin', 'operator']);
+  MODE_SENYAP = true;
+  const tahun = Number(d && d.tahun), bulan = Number(d && d.bulan), jenis = String(d && d.jenis || '');
+  if (!tahun || !(bulan >= 1 && bulan <= 12) || ['slip', 'daftar'].indexOf(jenis) === -1) throw new Error('Data cetak tidak valid.');
+  const catatan = bacaCetakTagihan_(tahun, bulan);
+  catatan[jenis] = { waktu: new Date().toISOString(), oleh: profil.email };
+  PropertiesService.getScriptProperties().setProperty(kunciCetakTagihan_(tahun, bulan), JSON.stringify(catatan));
+  return catatan;
 }
