@@ -316,6 +316,12 @@ function jasaSukarelaSusulan(tahun, sampaiBulan, simpan) {
         hasil.bulan.push(info);
         continue;
       }
+      // DRAFT lama (dihitung sebelum bulan-bulan sebelumnya diposting) → dihitung ulang
+      const draftLama = lama.filter(function(r) { return r.status_posting === 'DRAFT'; });
+      draftLama.forEach(function(r) {
+        updateRowByRowNumber(SHEET.JASA_SUKARELA, r.__row, { status_posting: 'VOID' });
+      });
+      if (draftLama.length) info.dihitungUlang = draftLama.length;
       hitungJasaSukarelaBulanan(tahun, b, { semuaAnggota: true });
       // semua DRAFT bulan itu (baru dihitung + DRAFT lama bila ada) → rincian, lalu posting
       barisBulan(b).forEach(function(r) {

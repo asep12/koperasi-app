@@ -2642,8 +2642,31 @@ dengan file ini. Lalu deploy ulang (New version).
   $('b-jasa').addEventListener('click', async function() {
     const p = periodeJasa();
     if (!(await cekAkhirBulan(p))) return;
-    api('apiHitungJasa', { tahun: p.tahun, bulan: p.bulan }, this).then(h => hasilNote('h-akhir', h));
+    api('apiHitungJasa', { tahun: p.tahun, bulan: p.bulan }, this).then(h => {
+      $('h-akhir').style.display = 'none';
+      renderJasaBulan(h);
+    });
   });
+  // Pratinjau hitung jasa satu bulan: siapa dapat berapa, dari saldo dasar berapa
+  function renderJasaBulan(h) {
+    const el = $('jasa-pratinjau'), draft = h.rincian.filter(r => r.posting === 'DRAFT').length;
+    el.style.display = '';
+    el.innerHTML = '<div class="note info">' + esc(h.pesan).replace(/\n/g, '<br>') +
+      '<br>Rumus: ' + esc(h.rumus) + '. Total jasa ' + esc(h.nama) + ': <b>' + rp(h.total) + '</b> untuk ' +
+      h.rincian.length + ' anggota' + (draft ? ' (' + draft + ' masih DRAFT — periksa dulu, lalu "Posting &amp; kunci")' : '') + '.' +
+      '</div>' +
+      (h.bulanKosong.length ? '<div class="note awas" style="margin-top:8px">⚠️ Jasa <b>' + esc(h.bulanKosong.join(', ')) +
+        '</b> ' + h.tahun + ' belum diposting, sehingga saldo dasar ' + esc(h.nama) + ' belum memuat jasa bulan-bulan itu. ' +
+        'Jangan posting dulu — gunakan <b>"Jasa bulan yang terlewat…"</b>: bulan-bulan itu dihitung berurutan dan DRAFT ini ' +
+        'ikut dihitung ulang.</div>' : '') +
+      (h.rincian.length ? '<div class="scroll jasa-tabel" style="margin-top:8px"><table><tr><th>Nama</th>' +
+        '<th class="ka">Saldo dasar</th><th class="ka">Jasa</th><th>Status</th></tr>' +
+        h.rincian.map(r => '<tr><td class="nama">' + esc(r.nama) +
+          (r.status !== 'aktif' ? ' <span class="chip pending">' + esc(r.status) + '</span>' : '') + '</td>' +
+          '<td class="ka num">' + rp(r.dasar) + '</td><td class="ka num"><b>' + rp(r.nominal) + '</b></td>' +
+          '<td><span class="chip ' + (r.posting === 'POSTED' ? 'aktif' : 'pending') + '">' + esc(r.posting) + '</span></td></tr>').join('') +
+        '<tr><td><b>JUMLAH</b></td><td></td><td class="ka num"><b>' + rp(h.total) + '</b></td><td></td></tr></table></div>' : '');
+  }
   $('b-posting').addEventListener('click', async function() {
     const p = periodeJasa();
     if (!(await tanya('Data jasa ' + p.nama + ' dikunci & jurnal dibuat. Tidak bisa diubah lagi.',
@@ -2663,6 +2686,8 @@ dengan file ini. Lalu deploy ulang (New version).
         (h.disimpan ? '✅ Tersimpan & diposting: ' : 'Pratinjau (belum disimpan): ') +
         'jasa sukarela ' + (bulanBaru.length ? bulanBaru[0].namaBulan + '–' + bulanBaru[bulanBaru.length - 1].namaBulan : '—') +
         ' ' + h.tahun + ' untuk ' + h.anggota.length + ' anggota, total <b>' + rp(h.total) + '</b>.' +
+        (h.bulan.some(b => b.dihitungUlang) ? '<br>DRAFT lama dihitung ulang: ' +
+          h.bulan.filter(b => b.dihitungUlang).map(b => b.namaBulan).join(', ') + '.' : '') +
         (h.bulan.some(b => b.status === 'sudah') ? '<br>Sudah diposting sebelumnya (dilewati): ' +
           h.bulan.filter(b => b.status === 'sudah').map(b => b.namaBulan).join(', ') + '.' : '') +
         (keluar.length ? '<br>⚠️ Termasuk anggota yang kini <b>keluar</b> (masih punya saldo di bulan itu): ' +

@@ -616,9 +616,39 @@ function apiHitungJasa(d) {
   MODE_SENYAP = true;
   const p = periodeJasa_(d);
   const h = hitungJasaSukarelaBulanan(p.tahun, p.bulan);
-  return '✅ Hitung jasa ' + p.nama + ' selesai (DRAFT).\nDibuat: ' + h.dibuat.length +
+  return ringkasanJasaBulan_(p, '✅ Hitung jasa ' + p.nama + ' selesai (DRAFT).\nDibuat: ' + h.dibuat.length +
     '\nDilewati (saldo 0): ' + h.dilewatiSaldoNol.length +
-    '\nDilewati (sudah ada): ' + h.dilewatiSudahAda.length;
+    '\nDilewati (sudah ada): ' + h.dilewatiSudahAda.length);
+}
+
+/**
+ * Rincian jasa satu bulan (semua baris DRAFT/POSTED, bukan hanya yang baru dibuat) untuk
+ * pratinjau di layar, plus bulan-bulan sebelumnya di tahun itu yang belum punya jasa POSTED
+ * (saldo dasar bulan ini belum memuat jasa bulan-bulan itu).
+ */
+function ringkasanJasaBulan_(p, pesan) {
+  const setting = getSettingRAT(p.tahun) || {};
+  const semua = sheetToObjects(SHEET.JASA_SUKARELA).filter(function(r) {
+    return Number(r.tahun) === p.tahun && r.status_posting !== 'VOID';
+  });
+  const rincian = semua.filter(function(r) { return Number(r.bulan) === p.bulan; }).map(function(r) {
+    const a = getAnggota(String(r.id_anggota));
+    return { id: String(r.id_anggota), nama: a ? String(a.nama) : String(r.id_anggota),
+      status: a ? String(a.status || '') : '', dasar: Number(r.dasar_jasa || r.saldo_awal_bulan) || 0,
+      nominal: Number(r.nominal_jasa) || 0, posting: r.status_posting };
+  }).sort(function(x, y) { return x.id < y.id ? -1 : 1; });
+  const bulanKosong = [];
+  for (let b = 1; b < p.bulan; b++) {
+    if (!semua.some(function(r) { return Number(r.bulan) === b && r.status_posting === 'POSTED'; })) {
+      bulanKosong.push(NAMA_BULAN_PANJANG[b - 1]);
+    }
+  }
+  return {
+    pesan: pesan, tahun: p.tahun, bulan: p.bulan, nama: p.nama,
+    rumus: KET_METODE_JASA[metodeJasaSukarela(setting)].replace('{p}', Number(setting.jasa_sukarela) || 0),
+    rincian: rincian, total: rincian.reduce(function(s, r) { return s + r.nominal; }, 0),
+    bulanKosong: bulanKosong
+  };
 }
 
 function apiPostingJasa(d) {
